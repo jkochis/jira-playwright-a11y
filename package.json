@@ -1,0 +1,43 @@
+{
+  "name": "jira-playwright-a11y",
+  "version": "1.0.0",
+  "description": "Automated accessibility testing using Jira descriptions, Playwright, and Axe with LLM-powered rule identification",
+  "main": "dist/index.js",
+  "types": "dist/types.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "tsx src/index.ts",
+    "clean": "rm -rf dist",
+    "install-browsers": "npx playwright install",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "accessibility",
+    "a11y",
+    "playwright",
+    "axe",
+    "jira",
+    "testing"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.1",
+    "@axe-core/playwright": "^4.10.0",
+    "@azure/openai": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "dotenv": "^16.4.5",
+    "jira-client": "^8.2.2",
+    "openai": "^6.9.1",
+    "playwright": "^1.48.0"
+  },
+  "devDependencies": {
+    "@types/jira-client": "^7.1.9",
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
