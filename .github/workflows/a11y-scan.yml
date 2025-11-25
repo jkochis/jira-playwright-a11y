@@ -1,0 +1,81 @@
+name: Accessibility Scan
+
+on:
+  # Run on schedule (weekly)
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday at 2 AM UTC
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Website URL to scan (overrides default)'
+        required: false
+        type: string
+      max_pages:
+        description: 'Maximum pages to crawl'
+        required: false
+        default: '50'
+        type: string
+      max_depth:
+        description: 'Maximum crawl depth'
+        required: false
+        default: '3'
+        type: string
+
+  # Run on push to main (optional)
+  # push:
+  #   branches:
+  #     - main
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    name: Scan Website for Accessibility Issues
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Run accessibility scan
+        env:
+          WEBSITE_URL: ${{ inputs.website_url || secrets.WEBSITE_URL || 'https://example.com' }}
+          MAX_PAGES: ${{ inputs.max_pages || '50' }}
+          MAX_DEPTH: ${{ inputs.max_depth || '3' }}
+          CONTEXT_DEPTH: '3'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_OUTPUT: ${{ github.output }}
+        run: node dist/action.js
+
+      - name: Generate job summary
+        if: always()
+        run: |
+          echo "## Accessibility Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Website**: ${{ inputs.website_url || secrets.WEBSITE_URL || 'https://example.com' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Date**: $(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See the workflow logs for detailed results." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Issues will be created/updated in the repository's Issues tab." >> $GITHUB_STEP_SUMMARY
