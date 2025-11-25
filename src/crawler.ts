@@ -48,10 +48,15 @@ export async function crawlWebsite(options: CrawlOptions): Promise<CrawlResult[]
   const results: CrawlResult[] = [];
   const baseUrlObj = new URL(baseUrl);
 
-  // Fetch and parse robots.txt if needed
+  // Fetch and parse robots.txt if needed (non-blocking)
   let disallowedPaths: string[] = [];
   if (respectRobotsTxt) {
-    disallowedPaths = await fetchRobotsTxt(baseUrl);
+    try {
+      disallowedPaths = await fetchRobotsTxt(baseUrl);
+    } catch (error) {
+      console.warn('Warning: Could not fetch robots.txt, continuing without it');
+      // Continue crawling even if robots.txt fails
+    }
   }
 
   const browser = await chromium.launch({ headless: true });
@@ -88,7 +93,10 @@ export async function crawlWebsite(options: CrawlOptions): Promise<CrawlResult[]
       const page = await context.newPage();
 
       try {
-        const response = await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+        const response = await page.goto(url, {
+          waitUntil: 'domcontentloaded', // Changed from 'networkidle' for faster loading
+          timeout: 60000 // Increased to 60 seconds
+        });
         const statusCode = response?.status() || 0;
 
         if (statusCode >= 200 && statusCode < 400) {
@@ -159,14 +167,27 @@ async function extractLinks(page: Page, baseUrl: URL): Promise<string[]> {
 }
 
 /**
- * Fetches and parses robots.txt
+ * Fetches and parses robots.txt with timeout
  */
 async function fetchRobotsTxt(baseUrl: string): Promise<string[]> {
   try {
     const robotsUrl = new URL('/robots.txt', baseUrl).href;
-    const response = await fetch(robotsUrl);
+
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+    const response = await fetch(robotsUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; AccessibilityScanner/1.0)'
+      }
+    });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
+      console.log(`robots.txt returned ${response.status}, continuing without restrictions`);
       return [];
     }
 
@@ -192,9 +213,14 @@ async function fetchRobotsTxt(baseUrl: string): Promise<string[]> {
       }
     }
 
+    console.log(`robots.txt: Found ${disallowed.length} disallowed path(s)`);
     return disallowed;
   } catch (error) {
-    console.warn('Failed to fetch robots.txt:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('robots.txt fetch timed out after 5 seconds');
+    } else {
+      console.warn('Failed to fetch robots.txt:', error instanceof Error ? error.message : 'Unknown error');
+    }
     return [];
   }
 }

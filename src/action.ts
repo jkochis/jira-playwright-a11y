@@ -47,7 +47,7 @@ export async function runAction(config: ActionConfig): Promise<void> {
       maxDepth: config.maxDepth || 3,
       includePatterns: config.includePatterns,
       excludePatterns: config.excludePatterns,
-      respectRobotsTxt: true
+      respectRobotsTxt: process.env.RESPECT_ROBOTS_TXT !== 'false' // Allow disabling via env var
     };
 
     const pages = await crawlWebsite(crawlOptions);
