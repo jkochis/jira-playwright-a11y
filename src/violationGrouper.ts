@@ -31,19 +31,57 @@ export interface ViolationGroup {
  * Same HTML structure = same signature, regardless of page
  */
 function createViolationSignature(violation: ViolationWithContext): string {
-  // Normalize HTML to ignore whitespace differences
-  const normalizedHtml = violation.html
+  // Normalize HTML to ignore whitespace and dynamic attributes
+  let normalizedHtml = violation.html
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
 
-  // Create signature from rule + normalized HTML structure
+  // Remove dynamic attributes that change between pages
+  normalizedHtml = normalizedHtml
+    // Remove aria-controls with dynamic IDs
+    .replace(/aria-controls="[^"]*"/g, 'aria-controls=""')
+    // Remove id attributes with dynamic values
+    .replace(/\sid="[^"]*"/g, ' id=""')
+    // Remove data attributes with dynamic values
+    .replace(/\sdata-[a-z-]+="[^"]*"/g, '')
+    // Remove class names that look generated (contain numbers/hashes)
+    .replace(/\sclass="([^"]*)"/g, (_match, classes) => {
+      const cleanClasses = classes
+        .split(' ')
+        .filter((c: string) => !/\d{3,}|[a-f0-9]{6,}/.test(c))
+        .join(' ');
+      return cleanClasses ? ` class="${cleanClasses}"` : '';
+    });
+
+  // Extract just the element structure (tag + key attributes)
+  const elementMatch = normalizedHtml.match(/^<(\w+)([^>]*)>/);
+  if (!elementMatch) {
+    // Fallback if we can't parse
+    return crypto.createHash('md5')
+      .update(`${violation.ruleId}:${normalizedHtml.substring(0, 100)}`)
+      .digest('hex');
+  }
+
+  const tagName = elementMatch[1];
+  const attributes = elementMatch[2];
+
+  // Keep only semantic attributes for signature
+  const semanticAttrs = attributes.match(/(role|aria-[a-z]+|type|name|placeholder)="[^"]*"/g) || [];
+
+  // Create signature from rule + tag + semantic attributes + CSS selector pattern
+  const selectorPattern = violation.context.cssSelector
+    .replace(/:\d+/g, '')  // Remove positional selectors
+    .replace(/#[^\s>]+/g, '')  // Remove IDs
+    .split(' > ')
+    .slice(-3)  // Use last 3 levels
+    .join(' > ');
+
   const signatureData = {
     ruleId: violation.ruleId,
-    // Use first 200 chars of HTML to create signature
-    // This captures the structure without being too specific
-    htmlStructure: normalizedHtml.substring(0, 200),
-    // Include key attributes that define the violation
+    tagName,
+    semanticAttributes: semanticAttrs.sort().join(' '),  // Sort for consistency
+    selectorPattern,
     impact: violation.impact || 'unknown'
   };
 
